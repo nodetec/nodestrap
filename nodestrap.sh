@@ -1,25 +1,38 @@
 #!/bin/bash
 
 # TODO: increase swap maybe
-# TODO: promt user to select drive to check drive performance
+# TODO: prompt user to select drive to check drive performance
 # TODO: setup ssh
 # TODO: prompt user top disable wireless interface
 # TODO: Klayperson: bro just write the whole script as sudo and put at the top [[ $UID == 0 ]] || sudo "$0"
 # TODO: route ssh through tor
+# TODO: script must now be run as sudo
 
 system_update() {
 	sudo apt update
 	sudo apt full-upgrade
-	sudo apt install wget curl gpg git --install-recommends
+	sudo apt install -y wget curl gpg git --install-recommends
 }
+
+system_update
+
+# TODO: Check if ssh is already enabled and started by default
+enable_and_start_ssh() {
+  sudo systemctl enable ssh
+  sudo systemctl start ssh
+}
+
+enable_and_start_ssh
 
 create_data_dir() {
 	sudo mkdir /data
 	sudo chown "$USER":"$USER" /data
 }
 
+create_data_dir
+
 enable_firewall() {
-	sudo apt install ufw
+	sudo apt install -y ufw
 	sudo ufw default deny incoming
 	sudo ufw default allow outgoing
 	sudo ufw allow ssh
@@ -29,9 +42,13 @@ enable_firewall() {
 	sudo systemctl enable ufw
 }
 
+enable_firewall
+
 install_fail2ban() {
-	sudo apt install fail2ban
+	sudo apt install -y fail2ban
 }
+
+install_fail2ban
 
 increase_open_files_limit() {
 	sudo mkdir -p /etc/security/limits.d
@@ -41,73 +58,17 @@ increase_open_files_limit() {
 root soft nofile 128000
 root hard nofile 128000
 EOF
-
-	sudo rm -rf /etc/pam.d/common-session
-	cat <<EOF | sudo tee /etc/pam.d/common-session
-#
-# /etc/pam.d/common-session - session-related modules common to all services
-#
-# This file is included from other service-specific PAM config files,
-# and should contain a list of modules that define tasks to be performed
-# at the start and end of interactive sessions.
-#
-# As of pam 1.0.1-6, this file is managed by pam-auth-update by default.
-# To take advantage of this, it is recommended that you configure any
-# local modules either before or after the default block, and use
-# pam-auth-update to manage selection of other modules.  See
-# pam-auth-update(8) for details.
-
-# here are the per-package modules (the "Primary" block)
-session [default=1] pam_permit.so
-# here's the fallback if no module succeeds
-session requisite pam_deny.so
-# prime the stack with a positive return value if there isn't one already;
-# this avoids us returning an error just because nothing sets a success code
-# since the modules above will each just jump around
-session required pam_permit.so
-# and here are more per-package modules (the "Additional" block)
-session required pam_unix.so
-session optional pam_systemd.so
-session optional pam_chksshpwd.so
-session required pam_limits.so
-
-# end of pam-auth-update config
-EOF
-
-	sudo rm -rf /etc/pam.d/common-session-noninteractive
-	cat <<EOF | sudo tee /etc/pam.d/common-session-noninteractive
-#
-# /etc/pam.d/common-session-noninteractive - session-related modules
-# common to all non-interactive services
-#
-# This file is included from other service-specific PAM config files,
-# and should contain a list of modules that define tasks to be performed
-# at the start and end of all non-interactive sessions.
-#
-# As of pam 1.0.1-6, this file is managed by pam-auth-update by default.
-# To take advantage of this, it is recommended that you configure any
-# local modules either before or after the default block, and use
-# pam-auth-update to manage selection of other modules.  See
-# pam-auth-update(8) for details.
-
-# here are the per-package modules (the "Primary" block)
-session	[default=1]			pam_permit.so
-# here's the fallback if no module succeeds
-session	requisite			pam_deny.so
-# prime the stack with a positive return value if there isn't one already;
-# this avoids us returning an error just because nothing sets a success code
-# since the modules above will each just jump around
-session	required			pam_permit.so
-# and here are more per-package modules (the "Additional" block)
-session	required	pam_unix.so 
-session required  pam_limits.so
-# end of pam-auth-update config# end of pam-auth-update config
-EOF
-
+	# TODO: find out a way to not hardcode the line numbers
+	# Hardcoded numbers will cause an issue when rerunning the script
+	# Temporary fix: Can comment them out after running the commands or remove these lines from the files after adding them
+	sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session
+	sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session-noninteractive
 }
 
+increase_open_files_limit
+
 prepare_nginx_reverse_proxy() {
-	sudo apt install nginx
+	sudo apt install -y nginx
 	sudo openssl req -x509 -nodes -newkey rsa:4096 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt -subj "/CN=localhost" -days 3650
 	sudo mkdir /etc/nginx/streams-enabled
 	sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
@@ -136,8 +97,10 @@ EOF
 
 }
 
+prepare_nginx_reverse_proxy
+
 install_tor() {
-	sudo apt install apt-transport-https
+	sudo apt install -y apt-transport-https
 	# TODO: derive architecture from system
 	# Klayperson: for architecture just `lscpu | awk '$1 == "Architecture:" { print $2 }'`
 	cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
@@ -147,9 +110,13 @@ EOF
 
 	sudo wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/tor-archive-keyring.gpg >/dev/null
 	sudo apt update
-	sudo apt install tor deb.torproject.org-keyring
+	sudo apt install -y tor deb.torproject.org-keyring
 	sudo sed -i '/ControlPort 9051/s/^#//g' /etc/tor/torrc
 	sudo sed -i '/CookieAuthentication 1/s/^#//g' /etc/tor/torrc
-	echo "CookieAuthFileGroupReadable 1" | sudo tee -a /etc/tor/torrc
+	# TODO: Find out a way to not hardcode the line number (may work by adding it to the end of the file)
+	sudo sed -i "61i CookieAuthFileGroupReadable 1" /etc/tor/torrc
+
 	sudo systemctl reload tor
 }
+
+install_tor
