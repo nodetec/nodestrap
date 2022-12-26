@@ -2,34 +2,34 @@
 
 # TODO: increase swap maybe
 # TODO: prompt user to select drive to check drive performance
-# TODO: setup ssh
 # TODO: prompt user top disable wireless interface
 # TODO: Klayperson: bro just write the whole script as sudo and put at the top [[ $UID == 0 ]] || sudo "$0"
 # TODO: route ssh through tor
 # TODO: script must now be run as sudo
 
 system_update() {
-	sudo apt update
-	sudo apt full-upgrade
-	sudo apt install -y wget curl gpg git --install-recommends
+  sudo apt update
+  sudo apt full-upgrade
+  sudo apt install -y wget curl gpg git openssh-server --install-recommends
 }
 
-system_update
+architecture=
+
+detect_architecture() {
+  architecture=$(uname -m)
+}
 
 # TODO: Check if ssh is already enabled and started by default
 enable_and_start_ssh() {
-  sudo systemctl enable ssh
-  sudo systemctl start ssh
+  systemctl status sshd
+  sudo systemctl enable --now sshd
+  sudo systemctl start sshd
 }
-
-enable_and_start_ssh
 
 create_data_dir() {
-	sudo mkdir /data
-	sudo chown "$USER":"$USER" /data
+  sudo mkdir /data
+  sudo chown "$USER":"$USER" /data
 }
-
-create_data_dir
 
 enable_firewall() {
 	sudo apt install -y ufw
@@ -42,13 +42,9 @@ enable_firewall() {
 	sudo systemctl enable ufw
 }
 
-enable_firewall
-
 install_fail2ban() {
 	sudo apt install -y fail2ban
 }
-
-install_fail2ban
 
 increase_open_files_limit() {
 	sudo mkdir -p /etc/security/limits.d
@@ -64,8 +60,6 @@ EOF
 	sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session
 	sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session-noninteractive
 }
-
-increase_open_files_limit
 
 prepare_nginx_reverse_proxy() {
 	sudo apt install -y nginx
@@ -94,18 +88,14 @@ stream {
 
 }
 EOF
-
 }
-
-prepare_nginx_reverse_proxy
 
 install_tor() {
 	sudo apt install -y apt-transport-https
-	# TODO: derive architecture from system
-	# Klayperson: for architecture just `lscpu | awk '$1 == "Architecture:" { print $2 }'`
+  # TODO: tor may be the only reason why the script needs to be ran with sudo
 	cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
-deb     [arch=amd64 signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
-deb-src [arch=amd64 signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
+deb     [arch=$architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
+deb-src [arch=$architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 EOF
 
 	sudo wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/tor-archive-keyring.gpg >/dev/null
@@ -119,4 +109,12 @@ EOF
 	sudo systemctl reload tor
 }
 
+system_update
+detect_architecture
+enable_and_start_ssh
+create_data_dir
+enable_firewall
+install_fail2ban
+increase_open_files_limit
+prepare_nginx_reverse_proxy
 install_tor
