@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# TODO: increase swap maybe
 # TODO: prompt user to select drive to check drive performance
 # TODO: prompt user top disable wireless interface
 # TODO: Klayperson: bro just write the whole script as sudo and put at the top [[ $UID == 0 ]] || sudo "$0"
@@ -10,7 +9,7 @@
 system_update() {
   sudo apt update
   sudo apt full-upgrade
-  sudo apt install -y wget curl gpg git openssh-server --install-recommends
+  sudo apt install -y wget curl gpg git openssh-server dphys-swapfile --install-recommends
 }
 
 architecture=
@@ -29,6 +28,14 @@ enable_and_start_ssh() {
 create_data_dir() {
   sudo mkdir /data
   sudo chown "$USER":"$USER" /data
+}
+
+dynamic_swap() {
+  sudo update-rc.d dphys-swapfile enable
+  # TODO: Check restricting to config limit value of 2048MB, the config limit can be updated in dphys-swapfile
+  sudo sed -i '/CONF_SWAPSIZE/s//#&/' /etc/dphys-swapfile
+  sudo dphys-swapfile install
+  sudo systemctl restart dphys-swapfile.service
 }
 
 enable_firewall() {
@@ -113,6 +120,7 @@ system_update
 detect_architecture
 enable_and_start_ssh
 create_data_dir
+dynamic_swap
 enable_firewall
 install_fail2ban
 increase_open_files_limit
