@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # TODO: Klayperson: bro just write the whole script as sudo and put at the top [[ $UID == 0 ]] || sudo "$0"
-# TODO: route ssh through tor
 # TODO: script must now be run as sudo
+
+# TODO: Login with SSH Keys
+
+# TODO: Should specific versions of packages be installed?
+# TODO: Try making while loops into a function
 
 system_update() {
   sudo apt update
@@ -259,6 +263,55 @@ EOF
   sudo systemctl reload tor
 }
 
+ssh_remote_access_through_tor() {
+  # TODO: Add the lines to torrc, best way to add them, pattern match?
+  # TODO: display onion address, tell them to copy it, store it in a safe location, e.g., in a password manager, and tell them how to use it
+
+  enable_ssh_remote_access_through_tor=
+  tor_connection_address_confirmation=
+
+  while true
+  do
+    echo
+    read -r -p "Do you want to enable SSH remote access through Tor? [Y/n] " enable_ssh_remote_access_through_tor
+
+    # TODO: Standard values for confirmation?
+    case $enable_ssh_remote_access_through_tor in
+      [yY][eE][sS]|[yY]|"")
+	sudo sed -i "79i HiddenServiceDir /var/lib/tor/hidden_service_sshd/" /etc/tor/torrc
+	sudo sed -i "80i HiddenServiceVersion 3" /etc/tor/torrc
+	# TODO: Check this IP Address, should local address be used?
+	sudo sed -i "81i HiddenServicePort 22 127.0.0.1:22" /etc/tor/torrc
+	# TODO: Add a new line
+	# sudo sed -i "82i " /etc/tor/torrc
+
+	# TODO: Test that the reloading produces the onion address
+	sudo systemctl reload tor
+
+	echo
+	echo "Do not share your Tor connection address with anyone!"
+	echo
+	echo "Be sure to store your Tor connection address in a secure location, e.g., your password manager"
+	echo
+	echo "Tor connection address: " $(sudo cat /var/lib/tor/hidden_service_sshd/hostname)
+	# TODO: If it isn't and they want it to be securely stored then show them how to securely store it
+	echo
+        read -p "Is your Tor connection address stored in a secure location? [Y/n] " tor_connection_address_confirmation
+        break
+        ;;
+      [nN][oO]|[nN])
+        echo
+	echo "SSH remote access through Tor not enabled"
+	break
+        ;;
+      *)
+        echo
+        echo "Invalid input..."
+        ;;
+    esac
+  done
+}
+
 system_update
 detect_cpu_architecture
 enable_and_start_ssh
@@ -271,3 +324,4 @@ increase_open_files_limit
 prepare_nginx_reverse_proxy
 disable_wireless_interfaces
 install_tor
+ssh_remote_access_through_tor
