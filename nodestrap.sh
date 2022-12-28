@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# TODO: prompt user to select drive to check drive performance
 # TODO: prompt user top disable wireless interface
 # TODO: Klayperson: bro just write the whole script as sudo and put at the top [[ $UID == 0 ]] || sudo "$0"
 # TODO: route ssh through tor
@@ -9,6 +8,7 @@
 system_update() {
   sudo apt update
   sudo apt full-upgrade
+  # TODO: Should all packages be installed here or should some be optional and installed in specific functions?
   sudo apt install -y wget curl gpg git openssh-server dphys-swapfile --install-recommends
 }
 
@@ -18,11 +18,75 @@ detect_architecture() {
   architecture=$(uname -m)
 }
 
-# TODO: Check if ssh is already enabled and started by default
+# TODO: Check if ssh is already enabled and started by default and that openssh-server should be used
 enable_and_start_ssh() {
   systemctl status sshd
   sudo systemctl enable --now sshd
   sudo systemctl start sshd
+}
+
+check_usb3_drive_performance() {
+  # TODO: Make measuring the speed of external drive optional?
+  sudo apt install -y hdparm
+
+  # TODO: Instead of prompting for user input make an informed guess on which drive they're using and ask them for
+  # confirmation, if they're using a different drive then allow them to input it?
+  # TODO: Check if someone is using an external drive or an internal drive?
+  # TODO: Allow someone to use a slow external drive
+
+  name=
+  name_confirmation=
+  speed_confirmation=
+
+  # TODO: Improve prompts
+  # TODO: Something better than using echo for new lines?
+  echo
+  echo "Measuring the speed of your drive..."
+
+  echo
+  echo "If the measured speed is more than 50MB/s, then no further action is needed"
+
+  # TODO: Configure the USB driver to ignore UAS interface
+  # TODO: Make this optional?
+  echo
+  echo "If the measured speed is not ideal, then we can configure the USB driver to ignore the UAS interface if using an external drive"
+
+  echo
+  lsblk -pli
+
+  # TODO: Improve example
+  echo
+  read -p "Enter the name of the partition being used to store the data for the node, for example, /dev/sda: " name
+
+  while true
+  do
+    # TODO: Standard values for confirmation?
+    echo
+    read -r -p "Is $name correct? [Y/n] " name_confirmation
+
+    case $name_confirmation in
+      [yY][eE][sS]|[yY]|"")
+        # TODO: Catch input error to prompt again for a valid name, currently it stops the script
+        sudo hdparm -t --direct $name
+        echo
+        # TODO: If the speed is not ideal, then ask if they want to configure the USB driver to ignore UAS interface
+        # Only ask if using an external drive since internal drive should be faster and be handled differently
+        read -p "Is measured speed more than 50MB/s? [Y/n] " speed_confirmation
+        echo
+        break
+        ;;
+      [nN][oO]|[nN])
+        echo
+        read -p "Re-enter the name: " name
+        ;;
+      *)
+        # TODO: More descriptive
+        # TODO: Allow them to cancel the measurement and continue with script?
+        echo
+        echo "Invalid input..."
+        ;;
+    esac
+  done
 }
 
 create_data_dir() {
@@ -100,6 +164,7 @@ EOF
 install_tor() {
 	sudo apt install -y apt-transport-https
   # TODO: tor may be the only reason why the script needs to be ran with sudo
+  # TODO: tor doesn't support x86_64 architecture?
 	cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
 deb     [arch=$architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 deb-src [arch=$architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
@@ -119,6 +184,7 @@ EOF
 system_update
 detect_architecture
 enable_and_start_ssh
+check_usb3_drive_performance
 create_data_dir
 dynamic_swap
 enable_firewall
