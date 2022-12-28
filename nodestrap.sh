@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# TODO: prompt user top disable wireless interface
 # TODO: Klayperson: bro just write the whole script as sudo and put at the top [[ $UID == 0 ]] || sudo "$0"
 # TODO: route ssh through tor
 # TODO: script must now be run as sudo
@@ -22,7 +21,6 @@ detect_cpu_architecture() {
 enable_and_start_ssh() {
   systemctl status sshd
   sudo systemctl enable --now sshd
-  sudo systemctl start sshd
 }
 
 check_usb3_drive_performance() {
@@ -103,41 +101,41 @@ dynamic_swap() {
 }
 
 enable_firewall() {
-	sudo apt install -y ufw
-	sudo ufw default deny incoming
-	sudo ufw default allow outgoing
-	sudo ufw allow ssh
-	sudo ufw logging off
-	sudo ufw enable
+  sudo apt install -y ufw
+  sudo ufw default deny incoming
+  sudo ufw default allow outgoing
+  sudo ufw allow ssh
+  sudo ufw logging off
+  sudo ufw enable
 
-	sudo systemctl enable ufw
+  sudo systemctl enable ufw
 }
 
 install_fail2ban() {
-	sudo apt install -y fail2ban
+  sudo apt install -y fail2ban
 }
 
 increase_open_files_limit() {
-	sudo mkdir -p /etc/security/limits.d
-	cat <<EOF | sudo tee /etc/security/limits.d/90-limits.conf
+  sudo mkdir -p /etc/security/limits.d
+  cat <<EOF | sudo tee /etc/security/limits.d/90-limits.conf
 *    soft nofile 128000
 *    hard nofile 128000
 root soft nofile 128000
 root hard nofile 128000
 EOF
-	# TODO: find out a way to not hardcode the line numbers
-	# Hardcoded numbers will cause an issue when rerunning the script
-	# Temporary fix: Can comment them out after running the commands or remove these lines from the files after adding them
-	sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session
-	sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session-noninteractive
+  # TODO: find out a way to not hardcode the line numbers
+  # Hardcoded numbers will cause an issue when rerunning the script
+  # Temporary fix: Can comment them out after running the commands or remove these lines from the files after adding them
+  sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session
+  sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session-noninteractive
 }
 
 prepare_nginx_reverse_proxy() {
-	sudo apt install -y nginx
-	sudo openssl req -x509 -nodes -newkey rsa:4096 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt -subj "/CN=localhost" -days 3650
-	sudo mkdir /etc/nginx/streams-enabled
-	sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
-	cat <<EOF | sudo tee /etc/nginx/nginx.conf
+  sudo apt install -y nginx
+  sudo openssl req -x509 -nodes -newkey rsa:4096 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt -subj "/CN=localhost" -days 3650
+  sudo mkdir /etc/nginx/streams-enabled
+  sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
+  cat <<EOF | sudo tee /etc/nginx/nginx.conf
 user www-data;
 worker_processes 1;
 pid /run/nginx.pid;
@@ -161,23 +159,104 @@ stream {
 EOF
 }
 
+disable_wireless_interfaces() {
+  echo
+  echo "In a security-focused device like a bitcoin node, it's recommended to turn off all radios which includes Bluetooth and WiFi"
+
+  echo
+  echo "If you're not using either of them, then both should be disabled"
+
+  disable_bluetooth
+  disable_wifi
+}
+
+disable_bluetooth() {
+  # TODO: Check if this works on RPi
+  # TODO: Improve prompts
+
+  disable_bluetooth=
+
+  while true
+  do
+    echo
+    read -r -p "Do you want to disable bluetooth [Y/n] " disable_bluetooth
+
+    # TODO: Standard values for confirmation?
+    case $disable_bluetooth in
+      [yY][eE][sS]|[yY]|"")
+	echo
+        sudo systemctl disable bluetooth.service
+        break
+        ;;
+      [nN][oO]|[nN])
+        echo
+        sudo systemctl enable bluetooth.service
+	break
+        ;;
+      *)
+        echo
+        echo "Invalid input..."
+        ;;
+    esac
+  done
+}
+
+disable_wifi() {
+  # TODO: Check if this works on RPi
+  # TODO: Improve prompts
+
+  echo
+  # TODO: Installing another package to handle disabling WiFi, see if we can do it without this package
+  # TODO: Allow user to set a static IP Address, can use nmcli
+  sudo apt install -y network-manager
+
+  sudo systemctl start NetworkManager.service
+  sudo systemctl enable NetworkManager.service
+
+  disable_wifi=
+
+  while true
+  do
+    echo
+    read -r -p "Do you want to disable WiFi [Y/n] " disable_wifi
+
+    # TODO: Standard values for confirmation?
+    case $disable_wifi in
+      [yY][eE][sS]|[yY]|"")
+	echo
+	nmcli radio wifi off
+        break
+        ;;
+      [nN][oO]|[nN])
+        echo
+	nmcli radio wifi on
+	break
+        ;;
+      *)
+        echo
+        echo "Invalid input..."
+        ;;
+    esac
+  done
+}
+
 install_tor() {
-	sudo apt install -y apt-transport-https
+  sudo apt install -y apt-transport-https
   # TODO: tor may be the only reason why the script needs to be ran with sudo
-	cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
+  cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
 deb     [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 deb-src [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 EOF
 
-	sudo wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/tor-archive-keyring.gpg >/dev/null
-	sudo apt update
-	sudo apt install -y tor deb.torproject.org-keyring
-	sudo sed -i '/ControlPort 9051/s/^#//g' /etc/tor/torrc
-	sudo sed -i '/CookieAuthentication 1/s/^#//g' /etc/tor/torrc
-	# TODO: Find out a way to not hardcode the line number (may work by adding it to the end of the file)
-	sudo sed -i "61i CookieAuthFileGroupReadable 1" /etc/tor/torrc
+  sudo wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/tor-archive-keyring.gpg >/dev/null
+  sudo apt update
+  sudo apt install -y tor deb.torproject.org-keyring
+  sudo sed -i '/ControlPort 9051/s/^#//g' /etc/tor/torrc
+  sudo sed -i '/CookieAuthentication 1/s/^#//g' /etc/tor/torrc
+  # TODO: Find out a way to not hardcode the line number (may work by adding it to the end of the file)
+  sudo sed -i "61i CookieAuthFileGroupReadable 1" /etc/tor/torrc
 
-	sudo systemctl reload tor
+  sudo systemctl reload tor
 }
 
 system_update
@@ -190,4 +269,5 @@ enable_firewall
 install_fail2ban
 increase_open_files_limit
 prepare_nginx_reverse_proxy
+disable_wireless_interfaces
 install_tor
