@@ -12,10 +12,10 @@ system_update() {
   sudo apt install -y wget curl gpg git openssh-server dphys-swapfile --install-recommends
 }
 
-architecture=
+cpu_architecture=
 
-detect_architecture() {
-  architecture=$(uname -m)
+detect_cpu_architecture() {
+  cpu_architecture=$(dpkg --print-architecture)
 }
 
 # TODO: Check if ssh is already enabled and started by default and that openssh-server should be used
@@ -164,10 +164,9 @@ EOF
 install_tor() {
 	sudo apt install -y apt-transport-https
   # TODO: tor may be the only reason why the script needs to be ran with sudo
-  # TODO: tor doesn't support x86_64 architecture?
 	cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
-deb     [arch=$architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
-deb-src [arch=$architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
+deb     [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
+deb-src [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 EOF
 
 	sudo wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/tor-archive-keyring.gpg >/dev/null
@@ -182,7 +181,7 @@ EOF
 }
 
 system_update
-detect_architecture
+detect_cpu_architecture
 enable_and_start_ssh
 check_usb3_drive_performance
 create_data_dir
