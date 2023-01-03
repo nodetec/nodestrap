@@ -7,6 +7,8 @@
 
 # TODO: Should specific versions of packages be installed?
 # TODO: Try making while loops into a function
+# TODO: Try making if statements into a function
+# TODO: How to route all network traffic over tor?
 
 system_update() {
   sudo apt update
@@ -21,7 +23,7 @@ detect_cpu_architecture() {
   cpu_architecture=$(dpkg --print-architecture)
 }
 
-# TODO: Check if ssh is already enabled and started by default and that openssh-server should be used
+# TODO: Check if ssh is already enabled and started by default
 enable_and_start_ssh() {
   systemctl status sshd
   sudo systemctl enable --now sshd
@@ -68,7 +70,7 @@ check_usb3_drive_performance() {
 
     case $name_confirmation in
       [yY][eE][sS]|[yY]|"")
-        # TODO: Catch input error to prompt again for a valid name, currently it stops the script
+        # TODO: Catch input error to prompt again for a valid name, currently it stops the script i think?
         sudo hdparm -t --direct $name
         echo
         # TODO: If the speed is not ideal, then ask if they want to configure the USB driver to ignore UAS interface
@@ -127,11 +129,27 @@ increase_open_files_limit() {
 root soft nofile 128000
 root hard nofile 128000
 EOF
-  # TODO: find out a way to not hardcode the line numbers
-  # Hardcoded numbers will cause an issue when rerunning the script
-  # Temporary fix: Can comment them out after running the commands or remove these lines from the files after adding them
-  sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session
-  sudo sed -i "25i session required	pam_limits.so" /etc/pam.d/common-session-noninteractive
+
+  # TODO: Use \t instead of spaces, i.e., session required\tpam_limits.so
+  # instead of session required        pam_limits.so
+  # TODO: Want to be able to detect the pattern session optional\tpam_systemd.so for common-session
+  if ! grep -Fxq "session required	pam_limits.so" /etc/pam.d/common-session
+  then
+    sudo sed -i '/pam_systemd.so/a session required\tpam_limits.so' /etc/pam.d/common-session
+  else
+    echo
+    echo "/etc/pam.d/common-session already updated..."
+  fi
+
+  # TODO: Want to be able to detect the pattern session required\tpam_unix.so for common-session-noninteractive
+  if ! grep -Fxq "session required	pam_limits.so" /etc/pam.d/common-session-noninteractive
+  then
+    sudo sed -i '/pam_unix.so/a session required\tpam_limits.so' /etc/pam.d/common-session-noninteractive
+  else
+    echo
+    echo "/etc/pam.d/common-session-noninteractive already updated..."
+    echo
+  fi
 }
 
 prepare_nginx_reverse_proxy() {
@@ -248,28 +266,41 @@ install_tor() {
   sudo apt install -y apt-transport-https
   # TODO: tor may be the only reason why the script needs to be ran with sudo
   cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
-deb     [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
+deb [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 deb-src [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 EOF
 
+  # TODO: Check if the script hangs here, i.e., at the wget and why?
   sudo wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/tor-archive-keyring.gpg >/dev/null
   sudo apt update
   sudo apt install -y tor deb.torproject.org-keyring
   sudo sed -i '/ControlPort 9051/s/^#//g' /etc/tor/torrc
   sudo sed -i '/CookieAuthentication 1/s/^#//g' /etc/tor/torrc
-  # TODO: Find out a way to not hardcode the line number (may work by adding it to the end of the file)
-  sudo sed -i "61i CookieAuthFileGroupReadable 1" /etc/tor/torrc
+
+  if ! grep -Fxq "CookieAuthFileGroupReadable 1" /etc/tor/torrc
+  then
+    sudo sed -i '/CookieAuthentication 1/a CookieAuthFileGroupReadable 1' /etc/tor/torrc
+  else
+    echo
+    echo "/etc/tor/torrc already updated..."
+    echo
+  fi
 
   sudo systemctl reload tor
 }
 
 ssh_remote_access_through_tor() {
-  # TODO: Add the lines to torrc, best way to add them, pattern match?
   # TODO: display onion address, tell them to copy it, store it in a safe location, e.g., in a password manager, and tell them how to use it
 
   enable_ssh_remote_access_through_tor=
   tor_connection_address_confirmation=
 
+  # TODO: If already added to the file don't display the connection
+  # address, ask them if they want to display the connection address, if
+  # yes display the connection address and ask them if they stored it in
+  # a secure location,
+  # make a separate function for displaying the connection address if
+  # already added to the file`
   while true
   do
     echo
@@ -278,12 +309,17 @@ ssh_remote_access_through_tor() {
     # TODO: Standard values for confirmation?
     case $enable_ssh_remote_access_through_tor in
       [yY][eE][sS]|[yY]|"")
-	sudo sed -i "79i HiddenServiceDir /var/lib/tor/hidden_service_sshd/" /etc/tor/torrc
-	sudo sed -i "80i HiddenServiceVersion 3" /etc/tor/torrc
-	# TODO: Check this IP Address, should local address be used?
-	sudo sed -i "81i HiddenServicePort 22 127.0.0.1:22" /etc/tor/torrc
-	# TODO: Add a new line
-	# sudo sed -i "82i " /etc/tor/torrc
+
+	if ! grep -Fxq "HiddenServiceDir /var/lib/tor/hidden_service_sshd/" /etc/tor/torrc
+	then
+	  sudo sed -i '/HiddenServicePort 22 127.0.0.1:22/a \\nHiddenServiceDir /var/lib/tor/hidden_service_sshd/' /etc/tor/torrc
+	  sudo sed -i '/HiddenServiceDir \/var\/lib\/tor\/hidden_service_sshd\//a HiddenServiceVersion 3' /etc/tor/torrc
+	  # TODO: Check this IP Address, should local address be used?
+	  sudo sed -i '/HiddenServiceVersion 3/a HiddenServicePort 22 127.0.0.1:22' /etc/tor/torrc
+	else
+	  echo
+	  echo "/etc/tor/torrc already updated..."
+	fi
 
 	# TODO: Test that the reloading produces the onion address
 	sudo systemctl reload tor
@@ -293,7 +329,7 @@ ssh_remote_access_through_tor() {
 	echo
 	echo "Be sure to store your Tor connection address in a secure location, e.g., your password manager"
 	echo
-	echo "Tor connection address: " $(sudo cat /var/lib/tor/hidden_service_sshd/hostname)
+	echo "Tor connection address:" $(sudo cat /var/lib/tor/hidden_service_sshd/hostname)
 	# TODO: If it isn't and they want it to be securely stored then show them how to securely store it
 	echo
         read -p "Is your Tor connection address stored in a secure location? [Y/n] " tor_connection_address_confirmation
