@@ -43,51 +43,46 @@ check_usb3_drive_performance() {
   speed_confirmation=
 
   # TODO: Improve prompts
-  # TODO: Something better than using echo for new lines?
-  echo
-  echo "Measuring the speed of your drive..."
+  printf "\nMeasuring the speed of your drive... \n\n"
 
-  echo
-  echo "If the measured speed is more than 50MB/s, then no further action is needed"
+  printf "If the measured speed is more than 50MB/s, then no further action is needed \n\n"
 
   # TODO: Configure the USB driver to ignore UAS interface
   # TODO: Make this optional?
-  echo
-  echo "If the measured speed is not ideal, then we can configure the USB driver to ignore the UAS interface if using an external drive"
+  printf "If the measured speed is not ideal, then we can configure the USB driver to ignore the UAS interface if using an external drive\n\n"
 
-  echo
   lsblk -pli
 
   # TODO: Improve example
-  echo
+  printf "\n"
   read -p "Enter the name of the partition being used to store the data for the node, for example, /dev/sda: " name
 
   while true
   do
-    # TODO: Standard values for confirmation?
-    echo
+    # TODO: For confirmations could make the user re-enter what they already inputted
+    printf "\n"
     read -r -p "Is $name correct? [Y/n] " name_confirmation
 
     case $name_confirmation in
       [yY][eE][sS]|[yY]|"")
         # TODO: Catch input error to prompt again for a valid name, currently it stops the script i think?
         sudo hdparm -t --direct $name
-        echo
+        printf "\n"
         # TODO: If the speed is not ideal, then ask if they want to configure the USB driver to ignore UAS interface
         # Only ask if using an external drive since internal drive should be faster and be handled differently
+	# TODO: Could get the speed value from the command and evaluate it ourselves
         read -p "Is measured speed more than 50MB/s? [Y/n] " speed_confirmation
-        echo
+        printf "\n"
         break
         ;;
       [nN][oO]|[nN])
-        echo
+        printf "\n"
         read -p "Re-enter the name: " name
         ;;
       *)
         # TODO: More descriptive
         # TODO: Allow them to cancel the measurement and continue with script?
-        echo
-        echo "Invalid input..."
+        printf "\nInvalid input...\n"
         ;;
     esac
   done
@@ -137,8 +132,7 @@ EOF
   then
     sudo sed -i '/pam_systemd.so/a session required\tpam_limits.so' /etc/pam.d/common-session
   else
-    echo
-    echo "/etc/pam.d/common-session already updated..."
+    printf "\n/etc/pam.d/common-session already updated...\n"
   fi
 
   # TODO: Want to be able to detect the pattern session required\tpam_unix.so for common-session-noninteractive
@@ -146,9 +140,7 @@ EOF
   then
     sudo sed -i '/pam_unix.so/a session required\tpam_limits.so' /etc/pam.d/common-session-noninteractive
   else
-    echo
-    echo "/etc/pam.d/common-session-noninteractive already updated..."
-    echo
+    printf "\n/etc/pam.d/common-session-noninteractive already updated...\n\n"
   fi
 }
 
@@ -182,11 +174,9 @@ EOF
 }
 
 disable_wireless_interfaces() {
-  echo
-  echo "In a security-focused device like a bitcoin node, it's recommended to turn off all radios which includes Bluetooth and WiFi"
+  printf "\nIn a security-focused device like a bitcoin node, it's recommended to turn off all radios which includes Bluetooth and WiFi\n\n"
 
-  echo
-  echo "If you're not using either of them, then both should be disabled"
+  printf "If you're not using either of them, then both should be disabled\n"
 
   disable_bluetooth
   disable_wifi
@@ -200,24 +190,22 @@ disable_bluetooth() {
 
   while true
   do
-    echo
+    printf "\n"
     read -r -p "Do you want to disable bluetooth [Y/n] " disable_bluetooth
 
-    # TODO: Standard values for confirmation?
     case $disable_bluetooth in
       [yY][eE][sS]|[yY]|"")
-	echo
+	printf "\n"
         sudo systemctl disable bluetooth.service
         break
         ;;
       [nN][oO]|[nN])
-        echo
+        printf "\n"
         sudo systemctl enable bluetooth.service
 	break
         ;;
       *)
-        echo
-        echo "Invalid input..."
+        printf "\nInvalid input...\n"
         ;;
     esac
   done
@@ -227,7 +215,7 @@ disable_wifi() {
   # TODO: Check if this works on RPi
   # TODO: Improve prompts
 
-  echo
+  printf "\n"
   # TODO: Installing another package to handle disabling WiFi, see if we can do it without this package
   # TODO: Allow user to set a static IP Address, can use nmcli
   sudo apt install -y network-manager
@@ -239,24 +227,22 @@ disable_wifi() {
 
   while true
   do
-    echo
+    printf "\n"
     read -r -p "Do you want to disable WiFi [Y/n] " disable_wifi
 
-    # TODO: Standard values for confirmation?
     case $disable_wifi in
       [yY][eE][sS]|[yY]|"")
-	echo
+	printf "\n"
 	nmcli radio wifi off
         break
         ;;
       [nN][oO]|[nN])
-        echo
+        printf "\n"
 	nmcli radio wifi on
 	break
         ;;
       *)
-        echo
-        echo "Invalid input..."
+        printf "\nInvalid input...\n"
         ;;
     esac
   done
@@ -281,9 +267,7 @@ EOF
   then
     sudo sed -i '/CookieAuthentication 1/a CookieAuthFileGroupReadable 1' /etc/tor/torrc
   else
-    echo
-    echo "/etc/tor/torrc already updated..."
-    echo
+    printf "\n/etc/tor/torrc already updated...\n"
   fi
 
   sudo systemctl reload tor
@@ -303,10 +287,9 @@ ssh_remote_access_through_tor() {
   # already added to the file`
   while true
   do
-    echo
+    printf "\n"
     read -r -p "Do you want to enable SSH remote access through Tor? [Y/n] " enable_ssh_remote_access_through_tor
 
-    # TODO: Standard values for confirmation?
     case $enable_ssh_remote_access_through_tor in
       [yY][eE][sS]|[yY]|"")
 
@@ -317,32 +300,26 @@ ssh_remote_access_through_tor() {
 	  # TODO: Check this IP Address, should local address be used?
 	  sudo sed -i '/HiddenServiceVersion 3/a HiddenServicePort 22 127.0.0.1:22' /etc/tor/torrc
 	else
-	  echo
-	  echo "/etc/tor/torrc already updated..."
+	  printf "\n/etc/tor/torrc already updated...\n"
 	fi
 
 	# TODO: Test that the reloading produces the onion address
 	sudo systemctl reload tor
 
-	echo
-	echo "Do not share your Tor connection address with anyone!"
-	echo
-	echo "Be sure to store your Tor connection address in a secure location, e.g., your password manager"
-	echo
-	echo "Tor connection address:" $(sudo cat /var/lib/tor/hidden_service_sshd/hostname)
+	printf "\nDo not share your Tor connection address with anyone!\n\n"
+	printf "Be sure to store your Tor connection address in a secure location, e.g., your password manager\n\n"
+	printf "Tor connection address: %s\n" "$(sudo cat /var/lib/tor/hidden_service_sshd/hostname)"
 	# TODO: If it isn't and they want it to be securely stored then show them how to securely store it
-	echo
+	printf "\n"
         read -p "Is your Tor connection address stored in a secure location? [Y/n] " tor_connection_address_confirmation
         break
         ;;
       [nN][oO]|[nN])
-        echo
-	echo "SSH remote access through Tor not enabled"
+	printf "\nSSH remote access through Tor not enabled\n"
 	break
         ;;
       *)
-        echo
-        echo "Invalid input..."
+        printf "\nInvalid input...\n"
         ;;
     esac
   done
