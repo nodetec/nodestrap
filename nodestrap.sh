@@ -7,11 +7,25 @@
 # TODO: Try making if statements into a function
 # TODO: How to route all network traffic over tor?
 
-# TODO: Exit script if anything other than the correct password is entered after three attempts for any of the commands
+check_sudo() {
+# TODO: Exit script if incorrect password is entered three times in a row currently it takes 9 times (3 times if using ctrl+c)
+# TODO: Issues with certain sudo commands
+  attempts=0
+  until $1
+  do
+    if [ $attempts -ne 2 ]; then
+      ((attempts++))
+    else
+      echo "Exiting nodestrap: 3 incorrect password attempts"
+      exit 1
+    fi
+    sleep 1
+  done
+}
 
 set_up_sudo_session() {
   printf "sudo permissions needed to set up bitcoin node\n"
-  sudo -v
+  check_sudo 'sudo -v'
 }
 
 system_update() {
@@ -43,8 +57,8 @@ check_usb3_drive_performance() {
   # TODO: Check if someone is using an external drive or an internal drive?
   # TODO: Allow someone to use a slow external drive
 
-  name=
-  name_confirmation=
+  partition_name=
+  partition_name_confirmation=
   speed_confirmation=
 
   # TODO: Improve prompts
@@ -58,38 +72,32 @@ check_usb3_drive_performance() {
 
   lsblk -pli
 
-  # TODO: Improve example
-  printf "\n"
-  read -p "Enter the name of the partition being used to store the data for the node, for example, /dev/sda: " name
-
   while true
   do
-    # TODO: For confirmations could make the user re-enter what they already inputted
+    # TODO: Improve example
     printf "\n"
-    read -r -p "Is $name correct? [Y/n] " name_confirmation
+    read -p "Enter the partition name being used to store the data for the node, for example, /dev/sda: " partition_name
 
-    case $name_confirmation in
-      [yY][eE][sS]|[yY]|"")
-        # TODO: Catch input error to prompt again for a valid name, currently it stops the script i think?
-        sudo hdparm -t --direct $name
-        printf "\n"
-        # TODO: If the speed is not ideal, then ask if they want to configure the USB driver to ignore UAS interface
-        # Only ask if using an external drive since internal drive should be faster and be handled differently
-	# TODO: Could get the speed value from the command and evaluate it ourselves
+    printf "\n"
+    read -r -p "Re-enter the partition name: " partition_name_confirmation
+
+    if [ $partition_name == $partition_name_confirmation ]; then
+      printf "\n"
+      sudo hdparm -t --direct $partition_name
+      if [ $? -eq 0 ]; then
+        printf "\n\n"
+      # TODO: If the speed is not ideal, then ask if they want to configure the USB driver to ignore UAS interface
+      # Only ask if using an external drive since internal drive should be faster and be handled differently
+      # TODO: Could get the speed value from the command and evaluate it ourselves
         read -p "Is measured speed more than 50MB/s? [Y/n] " speed_confirmation
         printf "\n"
         break
-        ;;
-      [nN][oO]|[nN])
-        printf "\n"
-        read -p "Re-enter the name: " name
-        ;;
-      *)
-        # TODO: More descriptive
-        # TODO: Allow them to cancel the measurement and continue with script?
-        printf "\nInvalid input...\n"
-        ;;
-    esac
+    fi
+    else
+      # TODO: Allow them to cancel the measurement and continue with script?
+      printf "\n"
+      printf "The partition names do not match\n"
+    fi
   done
 }
 
