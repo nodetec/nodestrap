@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# TODO: Klayperson: bro just write the whole script as sudo and put at the top [[ $UID == 0 ]] || sudo "$0"
-# TODO: script must now be run as sudo
-
 # TODO: Login with SSH Keys
 
 # TODO: Should specific versions of packages be installed?
@@ -10,11 +7,17 @@
 # TODO: Try making if statements into a function
 # TODO: How to route all network traffic over tor?
 
+# TODO: Exit script if anything other than the correct password is entered after three attempts for any of the commands
+
+set_up_sudo_session() {
+  printf "sudo permissions needed to set up bitcoin node\n"
+  sudo -v
+}
+
 system_update() {
   sudo apt update
   sudo apt full-upgrade
-  # TODO: Should all packages be installed here or should some be optional and installed in specific functions?
-  sudo apt install -y wget curl gpg git openssh-server dphys-swapfile --install-recommends
+  sudo apt install -y wget curl gpg git --install-recommends
 }
 
 cpu_architecture=
@@ -23,14 +26,16 @@ detect_cpu_architecture() {
   cpu_architecture=$(dpkg --print-architecture)
 }
 
-# TODO: Check if ssh is already enabled and started by default
+# TODO: Check if ssh is already enabled and started by default, apt should already check if a package is installed, if it is will it update it
+# when installing again?
 enable_and_start_ssh() {
+  sudo apt install -y openssh-server
   systemctl status sshd
   sudo systemctl enable --now sshd
 }
 
 check_usb3_drive_performance() {
-  # TODO: Make measuring the speed of external drive optional?
+  # TODO: Make measuring the speed of drive optional?
   sudo apt install -y hdparm
 
   # TODO: Instead of prompting for user input make an informed guess on which drive they're using and ask them for
@@ -94,6 +99,7 @@ create_data_dir() {
 }
 
 dynamic_swap() {
+  sudo apt install -y dphys-swapfile
   sudo update-rc.d dphys-swapfile enable
   # TODO: Check restricting to config limit value of 2048MB, the config limit can be updated in dphys-swapfile
   sudo sed -i '/CONF_SWAPSIZE/s//#&/' /etc/dphys-swapfile
@@ -250,9 +256,8 @@ disable_wifi() {
 
 install_tor() {
   sudo apt install -y apt-transport-https
-  # TODO: tor may be the only reason why the script needs to be ran with sudo
   cat <<EOF | sudo tee /etc/apt/sources.list.d/tor.list
-deb [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
+deb 	[arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 deb-src [arch=$cpu_architecture signed-by=/usr/share/keyrings/tor-archive-keyring.gpg] https://deb.torproject.org/torproject.org bullseye main
 EOF
 
@@ -284,7 +289,7 @@ ssh_remote_access_through_tor() {
   # yes display the connection address and ask them if they stored it in
   # a secure location,
   # make a separate function for displaying the connection address if
-  # already added to the file`
+  # already added to the file
   while true
   do
     printf "\n"
@@ -303,7 +308,6 @@ ssh_remote_access_through_tor() {
 	  printf "\n/etc/tor/torrc already updated...\n"
 	fi
 
-	# TODO: Test that the reloading produces the onion address
 	sudo systemctl reload tor
 
 	printf "\nDo not share your Tor connection address with anyone!\n\n"
@@ -325,6 +329,7 @@ ssh_remote_access_through_tor() {
   done
 }
 
+set_up_sudo_session
 system_update
 detect_cpu_architecture
 enable_and_start_ssh
