@@ -42,6 +42,7 @@ detect_cpu_architecture() {
 
 # TODO: Check if ssh is already enabled and started by default, apt should already check if a package is installed, if it is will it update it
 # when installing again?
+# TODO: Command requires user to input q when initially ran
 enable_and_start_ssh() {
   sudo apt install -y openssh-server
   systemctl status sshd
@@ -52,9 +53,7 @@ check_usb3_drive_performance() {
   # TODO: Make measuring the speed of drive optional?
   sudo apt install -y hdparm
 
-  # TODO: Instead of prompting for user input make an informed guess on which drive they're using and ask them for
-  # confirmation, if they're using a different drive then allow them to input it?
-  # TODO: Check if someone is using an external drive or an internal drive?
+  # TODO: Instead of prompting for user input make an informed guess on which drive they're using and ask them for confirmation, if they're using a different drive then allow them to input it?
   # TODO: Allow someone to use a slow external drive
 
   partition_name=
@@ -92,12 +91,48 @@ check_usb3_drive_performance() {
         read -p "Is measured speed more than 50MB/s? [Y/n] " speed_confirmation
         printf "\n"
         break
-    fi
+      fi
     else
       # TODO: Allow them to cancel the measurement and continue with script?
       printf "\n"
       printf "The partition names do not match\n"
     fi
+  done
+}
+
+detect_usb_drives() {
+  external_usb_drive=
+
+  # TODO: Improve prompts
+  while true
+  do
+    printf "\n"
+    read -r -p "Are you using an external USB drive to store the data for the node? [Y/n] " external_usb_drive
+
+    case $external_usb_drive in
+      [yY][eE][sS]|[yY]|"")
+	printf "\n"
+        ls -l /dev/disk/by-id/usb*
+        if [ $? -eq 0 ]; then
+          printf "\nUSB drive(s) detected\n\n"
+          check_usb3_drive_performance
+	  break
+        else
+          printf "\nNo USB drives detected\n\n"
+	  printf "If you are using an internal drive, then input n\n\n"
+          #TODO: Check mounting: done automatically & should be checked and done before this?
+	  printf "If you are using an external USB drive, then check the connection and that it has been properly mounted\n"
+	  printf "You may need to reboot the device\n"
+        fi
+        ;;
+      [nN][oO]|[nN])
+        printf "\nSince you are using an internal drive to store the node data, we will not be measurinng the speed of the drive\n"
+	break
+        ;;
+      *)
+        printf "\nInvalid input...\n"
+        ;;
+    esac
   done
 }
 
@@ -197,7 +232,6 @@ disable_wireless_interfaces() {
 }
 
 disable_bluetooth() {
-  # TODO: Check if this works on RPi
   # TODO: Improve prompts
 
   disable_bluetooth=
@@ -226,12 +260,12 @@ disable_bluetooth() {
 }
 
 disable_wifi() {
-  # TODO: Check if this works on RPi
   # TODO: Improve prompts
 
   printf "\n"
   # TODO: Installing another package to handle disabling WiFi, see if we can do it without this package
   # TODO: Allow user to set a static IP Address, can use nmcli
+  # TODO: RPi 3 with Raspian crashed here on initial execution?
   sudo apt install -y network-manager
 
   sudo systemctl start NetworkManager.service
@@ -341,7 +375,7 @@ set_up_sudo_session
 system_update
 detect_cpu_architecture
 enable_and_start_ssh
-check_usb3_drive_performance
+detect_usb_drives
 create_data_dir
 dynamic_swap
 enable_firewall
